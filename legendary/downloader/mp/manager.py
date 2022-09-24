@@ -29,7 +29,7 @@ class DLManager(Process):
 
         self.base_url = base_url
         self.dl_dir = download_dir
-        self.cache_dir = cache_dir if cache_dir else os.path.join(download_dir, '.cache')
+        self.cache_dir = cache_dir or os.path.join(download_dir, '.cache')
 
         # All the queues!
         self.logging_queue = None
@@ -37,7 +37,7 @@ class DLManager(Process):
         self.writer_queue = None
         self.dl_result_q = None
         self.writer_result_q = None
-        self.max_workers = max_workers if max_workers else min(cpu_count() * 2, 16)
+        self.max_workers = max_workers or min(cpu_count() * 2, 16)
         self.dl_timeout = dl_timeout
 
         # Analysis stuff
@@ -57,7 +57,7 @@ class DLManager(Process):
 
         # Resume file stuff
         self.resume_file = resume_file
-        self.hash_map = dict()
+        self.hash_map = {}
 
         # cross-thread runtime information
         self.running = True

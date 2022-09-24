@@ -87,7 +87,7 @@ def generate_aliases(game_name, game_folder=None, split_words=True, app_name=Non
             if len(word) >= 8 and word[3:-3].count('f') == 1:
                 word_middle = word[3:-3]
                 word_split = ' f'.join(word_middle.split('f'))
-                word = word[0:3] + word_split + word[-3:]
+                word = word[:3] + word_split + word[-3:]
                 new_game_parts.extend(word.split())
             else:
                 new_game_parts.append(word)

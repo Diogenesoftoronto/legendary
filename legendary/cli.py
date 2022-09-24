@@ -169,11 +169,8 @@ class LegendaryCLI:
                 return
         elif args.session_id:
             exchange_token = self.core.auth_sid(args.session_id)
-        elif args.auth_code:
+        else:
             auth_code = args.auth_code
-        elif args.ex_token:
-            exchange_token = args.ex_token
-
         if not exchange_token and not auth_code:
             logger.fatal('No exchange token/authorization code, cannot login.')
             return
@@ -247,7 +244,7 @@ class LegendaryCLI:
                 elif _store:
                     print(f'  ! This game has to be installed through a third-party store ({_store}, not supported)')
                 else:
-                    print(f'  ! No version information (unknown cause)')
+                    print('  ! No version information (unknown cause)')
             # Games that have assets, but only require a one-time activation before they can be independently installed
             # via a third-party platform (e.g. Uplay)
             if game.partner_link_type:
@@ -278,7 +275,7 @@ class LegendaryCLI:
         games = sorted(self.core.get_installed_list(include_dlc=True),
                        key=lambda x: x.title.lower())
 
-        versions = dict()
+        versions = {}
         for game in games:
             try:
                 versions[game.app_name] = self.core.get_asset(game.app_name, platform=game.platform).build_version
@@ -380,15 +377,17 @@ class LegendaryCLI:
             writer.writerow(['path', 'hash', 'size', 'install_tags'])
             writer.writerows((fm.filename, fm.hash.hex(), fm.file_size, '|'.join(fm.install_tags)) for fm in files)
         elif args.json:
-            _files = []
-            for fm in files:
-                _files.append(dict(
+            _files = [
+                dict(
                     filename=fm.filename,
                     sha_hash=fm.hash.hex(),
                     install_tags=fm.install_tags,
                     file_size=fm.file_size,
                     flags=fm.flags,
-                ))
+                )
+                for fm in files
+            ]
+
             return self._print_json(_files, args.pretty_json)
         else:
             install_tags = set()
@@ -430,7 +429,7 @@ class LegendaryCLI:
         if not self.core.login():
             logger.error('Login failed! Cannot continue with download process.')
             exit(1)
-        logger.info(f'Cleaning saves...')
+        logger.info('Cleaning saves...')
         self.core.clean_saves(self._resolve_aliases(args.app_name), args.delete_incomplete)
 
     def sync_saves(self, args):
@@ -449,10 +448,10 @@ class LegendaryCLI:
 
         # check available saves
         saves = self.core.get_save_games()
-        latest_save = dict()
+        latest_save = {
+            save.app_name: save for save in sorted(saves, key=lambda a: a.datetime)
+        }
 
-        for save in sorted(saves, key=lambda a: a.datetime):
-            latest_save[save.app_name] = save
 
         logger.info(f'Got {len(latest_save)} remote save game(s)')
 
@@ -475,7 +474,7 @@ class LegendaryCLI:
             # if there is no saved save path, try to get one
             if not igame.save_path:
                 if args.yes:
-                    logger.info(f'Save path for this title has not been set, skipping due to --yes')
+                    logger.info('Save path for this title has not been set, skipping due to --yes')
                     continue
 
                 save_path = self.core.get_save_path(igame.app_name, platform=igame.platform)
@@ -506,7 +505,11 @@ class LegendaryCLI:
                 logger.info('No cloud or local savegame found.')
                 continue
 
-            if res == SaveGameStatus.SAME_AGE and not (args.force_upload or args.force_download):
+            if (
+                res == SaveGameStatus.SAME_AGE
+                and not args.force_upload
+                and not args.force_download
+            ):
                 logger.info(f'Save game for "{igame.title}" is up to date, skipping...')
                 continue
 
@@ -523,10 +526,13 @@ class LegendaryCLI:
                     logger.info('Save game downloading is disabled, skipping...')
                     continue
 
-                if not args.yes and not args.force_download:
-                    if not get_boolean_choice(f'Download cloud save?'):
-                        logger.info('Not downloading...')
-                        continue
+                if (
+                    not args.yes
+                    and not args.force_download
+                    and not get_boolean_choice('Download cloud save?')
+                ):
+                    logger.info('Not downloading...')
+                    continue
 
                 logger.info('Downloading remote savegame...')
                 self.core.download_saves(igame.app_name, save_dir=igame.save_path, clean_dir=True,
@@ -544,10 +550,13 @@ class LegendaryCLI:
                     logger.info('Save game uploading is disabled, skipping...')
                     continue
 
-                if not args.yes and not args.force_upload:
-                    if not get_boolean_choice(f'Upload local save?'):
-                        logger.info('Not uploading...')
-                        continue
+                if (
+                    not args.yes
+                    and not args.force_upload
+                    and not get_boolean_choice('Upload local save?')
+                ):
+                    logger.info('Not uploading...')
+                    continue
                 logger.info('Uploading local savegame...')
                 self.core.upload_save(igame.app_name, igame.save_path, dt_l, args.disable_filters)
 
@@ -610,7 +619,7 @@ class LegendaryCLI:
                                                  crossover_bottle=args.crossover_bottle)
 
         if args.set_defaults:
-            self.core.lgd.config[app_name] = dict()
+            self.core.lgd.config[app_name] = {}
             # we have to do this if-cacophony here because an empty value is still
             # valid and could cause issues when relying on config.get()'s fallback
             if args.offline:
@@ -638,7 +647,7 @@ class LegendaryCLI:
         if args.json:
             return self._print_json(vars(params), args.pretty_json)
 
-        full_params = list()
+        full_params = []
         full_params.extend(params.launch_command)
         full_params.append(os.path.join(params.game_directory, params.game_executable))
         full_params.extend(params.game_parameters)

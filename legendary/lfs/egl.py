@@ -28,7 +28,7 @@ class EPCLFS:
         self.config = configparser.ConfigParser(strict=False)
         self.config.optionxform = lambda option: option
 
-        self.manifests = dict()
+        self.manifests = {}
 
     def read_config(self):
         if not self.appdata_path:
