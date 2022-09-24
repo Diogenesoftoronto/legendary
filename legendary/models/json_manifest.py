@@ -50,7 +50,7 @@ class JSONManifest(Manifest):
         _m.chunk_data_list = JSONCDL.read(_tmp, manifest_version=_m.version)
         _m.file_manifest_list = JSONFML.read(_tmp)
         _m.custom_fields = CustomFields()
-        _m.custom_fields._dict = _tmp.pop('CustomFields', dict())
+        _m.custom_fields._dict = _tmp.pop('CustomFields', {})
 
         if _tmp.keys():
             print(f'Did not read JSON keys: {_tmp.keys()}!')
@@ -96,7 +96,7 @@ class JSONManifestMeta(ManifestMeta):
         _meta.build_version = json_data.pop('BuildVersionString', '')
         _meta.launch_exe = json_data.pop('LaunchExeString', '')
         _meta.launch_command = json_data.pop('LaunchCommand', '')
-        _meta.prereq_ids = json_data.pop('PrereqIds', list())
+        _meta.prereq_ids = json_data.pop('PrereqIds', [])
         _meta.prereq_name = json_data.pop('PrereqName', '')
         _meta.prereq_path = json_data.pop('PrereqPath', '')
         _meta.prereq_args = json_data.pop('PrereqArgs', '')
@@ -155,7 +155,7 @@ class JSONFML(FML):
             _fm.flags |= int(_fmj.pop('bIsUnixExecutable', False)) << 2
             _fm.file_size = 0
             _fm.chunk_parts = []
-            _fm.install_tags = _fmj.pop('InstallTags', list())
+            _fm.install_tags = _fmj.pop('InstallTags', [])
 
             _offset = 0
             for _cpj in _fmj.pop('FileChunkParts'):

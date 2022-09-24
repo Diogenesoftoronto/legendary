@@ -13,7 +13,7 @@ def read_registry(wine_pfx):
 
 
 def get_shell_folders(registry, wine_pfx):
-    folders = dict()
+    folders = {}
     for k, v in registry['Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Explorer\\\\Shell Folders'].items():
         path_cleaned = v.strip('"').strip().replace('\\\\', '/').replace('C:/', '')
         folders[k.strip('"').strip()] = os.path.join(wine_pfx, 'drive_c', path_cleaned)

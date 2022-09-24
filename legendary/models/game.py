@@ -67,21 +67,33 @@ class Game:
 
     @property
     def third_party_store(self):
-        if not self.metadata:
-            return None
-        return self.metadata.get('customAttributes', {}).get('ThirdPartyManagedApp', {}).get('value', None)
+        return (
+            self.metadata.get('customAttributes', {})
+            .get('ThirdPartyManagedApp', {})
+            .get('value', None)
+            if self.metadata
+            else None
+        )
 
     @property
     def partner_link_type(self):
-        if not self.metadata:
-            return None
-        return self.metadata.get('customAttributes', {}).get('partnerLinkType', {}).get('value', None)
+        return (
+            self.metadata.get('customAttributes', {})
+            .get('partnerLinkType', {})
+            .get('value', None)
+            if self.metadata
+            else None
+        )
 
     @property
     def partner_link_id(self):
-        if not self.metadata:
-            return None
-        return self.metadata.get('customAttributes', {}).get('partnerLinkId', {}).get('value', None)
+        return (
+            self.metadata.get('customAttributes', {})
+            .get('partnerLinkId', {})
+            .get('value', None)
+            if self.metadata
+            else None
+        )
 
     @property
     def supports_cloud_saves(self):
@@ -93,15 +105,11 @@ class Game:
 
     @property
     def catalog_item_id(self):
-        if not self.metadata:
-            return None
-        return self.metadata['id']
+        return self.metadata['id'] if self.metadata else None
 
     @property
     def namespace(self):
-        if not self.metadata:
-            return None
-        return self.metadata['namespace']
+        return self.metadata['namespace'] if self.metadata else None
 
     @classmethod
     def from_json(cls, json):
@@ -109,14 +117,14 @@ class Game:
             app_name=json.get('app_name', ''),
             app_title=json.get('app_title', ''),
         )
-        tmp.metadata = json.get('metadata', dict())
+        tmp.metadata = json.get('metadata', {})
         if 'asset_infos' in json:
             tmp.asset_infos = {k: GameAsset.from_json(v) for k, v in json['asset_infos'].items()}
         else:
             # Migrate old asset_info to new asset_infos
-            tmp.asset_infos['Windows'] = GameAsset.from_json(json.get('asset_info', dict()))
+            tmp.asset_infos['Windows'] = GameAsset.from_json(json.get('asset_info', {}))
 
-        tmp.base_urls = json.get('base_urls', list())
+        tmp.base_urls = json.get('base_urls', [])
         return tmp
 
     @property
@@ -161,7 +169,7 @@ class InstalledGame:
             version=json.get('version', ''),
         )
 
-        tmp.base_urls = json.get('base_urls', list())
+        tmp.base_urls = json.get('base_urls', [])
         tmp.executable = json.get('executable', '')
         tmp.launch_parameters = json.get('launch_parameters', '')
         tmp.prereq_info = json.get('prereq_info', None)

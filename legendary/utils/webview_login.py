@@ -22,7 +22,8 @@ except Exception as e:
 
 login_url = 'https://www.epicgames.com/id/login'
 sid_url = 'https://www.epicgames.com/id/api/redirect?'
-logout_url = 'https://www.epicgames.com/id/logout?productName=epic-games&redirectUrl=' + login_url
+logout_url = f'https://www.epicgames.com/id/logout?productName=epic-games&redirectUrl={login_url}'
+
 goodbye_url = 'https://legendary.gl/goodbye'
 window_js = '''
 window.ue = {
@@ -102,7 +103,7 @@ class MockLauncher:
     def trigger_sid_exchange(self, *args, **kwargs):
         # check if code-based login hasn't already set the destroy flag
         if not self.destroy_on_load:
-            logger.debug(f'Injecting SID JS')
+            logger.debug('Injecting SID JS')
             # inject JS to get SID API response and call our API
             self.window.evaluate_js(get_sid_js)
 
@@ -111,9 +112,8 @@ class MockLauncher:
         try:
             j = json.loads(sid_json)
             sid = j['sid']
-            logger.debug(f'Got SID (stage 2)! Executing sid login callback...')
-            exchange_code = self.callback_sid(sid)
-            if exchange_code:
+            logger.debug('Got SID (stage 2)! Executing sid login callback...')
+            if exchange_code := self.callback_sid(sid):
                 self.callback_result = self.callback_code(exchange_code)
         except Exception as e:
             logger.error(f'SID login failed with {e!r}')
@@ -125,9 +125,14 @@ class MockLauncher:
 def do_webview_login(callback_sid=None, callback_code=None):
     api = MockLauncher(callback_sid=callback_sid, callback_code=callback_code)
     logger.info('Opening Epic Games login window...')
-    window = webview.create_window(f'Legendary {__version__} - Epic Games Account Login',
-                                   url=logout_url if not callback_sid else login_url,
-                                   width=768, height=1024, js_api=api)
+    window = webview.create_window(
+        f'Legendary {__version__} - Epic Games Account Login',
+        url=login_url if callback_sid else logout_url,
+        width=768,
+        height=1024,
+        js_api=api,
+    )
+
     api.window = window
     window.events.loaded += api.on_loaded
 
@@ -139,6 +144,6 @@ def do_webview_login(callback_sid=None, callback_code=None):
         return None
 
     if api.callback_result is None:
-        logger.error(f'Login aborted by user.')
+        logger.error('Login aborted by user.')
 
     return api.callback_result

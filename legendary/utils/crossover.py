@@ -38,9 +38,11 @@ def mac_find_crossover_apps():
 
 def mac_get_crossover_bottles():
     bottles_path = os.path.expanduser('~/Library/Application Support/CrossOver/Bottles')
-    if not os.path.exists(bottles_path):
-        return []
-    return sorted(p for p in os.listdir(bottles_path) if mac_is_valid_bottle(p))
+    return (
+        sorted(p for p in os.listdir(bottles_path) if mac_is_valid_bottle(p))
+        if os.path.exists(bottles_path)
+        else []
+    )
 
 
 def mac_is_valid_bottle(bottle_name):

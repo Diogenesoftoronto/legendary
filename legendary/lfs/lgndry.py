@@ -31,7 +31,7 @@ class LGDLFS:
         # EGS asset data
         self._assets = None
         # EGS metadata
-        self._game_metadata = dict()
+        self._game_metadata = {}
         # Legendary update check info
         self._update_info = None
         # EOS Overlay install/update check info
@@ -89,7 +89,7 @@ class LGDLFS:
         except Exception as e:
             self.log.error(f'Unable to read configuration file, please ensure that file is valid! '
                            f'(Error: {repr(e)})')
-            self.log.warning(f'Continuing with blank config in safe-mode...')
+            self.log.warning('Continuing with blank config in safe-mode...')
             self.config.read_only = True
 
         # make sure "Legendary" section exists
@@ -119,7 +119,7 @@ class LGDLFS:
                 self.log.debug(f'Loading game meta file "{gm_file}" failed: {e!r}')
 
         # load auto-aliases if enabled
-        self.aliases = dict()
+        self.aliases = {}
         if not self.config.getboolean('Legendary', 'disable_auto_aliasing', fallback=False):
             try:
                 _j = json.load(open(os.path.join(self.path, 'aliases.json')))
@@ -209,7 +209,10 @@ class LGDLFS:
         try:
             return open(self._get_manifest_filename(app_name, version, platform), 'rb').read()
         except FileNotFoundError:  # all other errors should propagate
-            self.log.debug(f'Loading manifest failed, retrying without platform in filename...')
+            self.log.debug(
+                'Loading manifest failed, retrying without platform in filename...'
+            )
+
             try:
                 return open(self._get_manifest_filename(app_name, version), 'rb').read()
             except FileNotFoundError:  # all other errors should propagate
@@ -220,8 +223,7 @@ class LGDLFS:
             f.write(manifest_data)
 
     def get_game_meta(self, app_name):
-        _meta = self._game_metadata.get(app_name, None)
-        if _meta:
+        if _meta := self._game_metadata.get(app_name, None):
             return Game.from_json(_meta)
         return None
 
@@ -232,13 +234,12 @@ class LGDLFS:
         json.dump(json_meta, open(meta_file, 'w'), indent=2, sort_keys=True)
 
     def delete_game_meta(self, app_name):
-        if app_name in self._game_metadata:
-            del self._game_metadata[app_name]
-            meta_file = os.path.join(self.path, 'metadata', f'{app_name}.json')
-            if os.path.exists(meta_file):
-                os.remove(meta_file)
-        else:
+        if app_name not in self._game_metadata:
             raise ValueError(f'Game {app_name} does not exist in metadata DB!')
+        del self._game_metadata[app_name]
+        meta_file = os.path.join(self.path, 'metadata', f'{app_name}.json')
+        if os.path.exists(meta_file):
+            os.remove(meta_file)
 
     def get_game_app_names(self):
         return sorted(self._game_metadata.keys())
@@ -263,9 +264,16 @@ class LGDLFS:
                     self.log.warning(f'Failed to delete file "{f}": {e!r}')
 
     def clean_manifests(self, in_use):
-        in_use_files = set(f'{clean_filename(f"{app_name}_{version}")}.manifest' for app_name, version, _ in in_use)
-        in_use_files |= set(f'{clean_filename(f"{app_name}_{platform}_{version}")}.manifest'
-                            for app_name, version, platform in in_use)
+        in_use_files = {
+            f'{clean_filename(f"{app_name}_{version}")}.manifest'
+            for app_name, version, _ in in_use
+        }
+
+        in_use_files |= {
+            f'{clean_filename(f"{app_name}_{platform}_{version}")}.manifest'
+            for app_name, version, platform in in_use
+        }
+
         for f in os.listdir(os.path.join(self.path, 'manifests')):
             if f not in in_use_files:
                 try:
@@ -281,14 +289,13 @@ class LGDLFS:
                 self.log.debug(f'Failed to load installed game data: {e!r}')
                 return None
 
-        game_json = self._installed.get(app_name, None)
-        if game_json:
+        if game_json := self._installed.get(app_name, None):
             return InstalledGame.from_json(game_json)
         return None
 
     def set_installed_game(self, app_name, install_info):
         if self._installed is None:
-            self._installed = dict()
+            self._installed = {}
 
         if app_name in self._installed:
             self._installed[app_name].update(install_info.__dict__)
@@ -313,10 +320,11 @@ class LGDLFS:
                   indent=2, sort_keys=True)
 
     def get_installed_list(self):
-        if not self._installed:
-            return []
-
-        return [InstalledGame.from_json(i) for i in self._installed.values()]
+        return (
+            [InstalledGame.from_json(i) for i in self._installed.values()]
+            if self._installed
+            else []
+        )
 
     def save_config(self):
         # do not save if in read-only mode or file hasn't changed
@@ -391,7 +399,7 @@ class LGDLFS:
     def get_overlay_install_info(self):
         if not self._overlay_install_info:
             try:
-                data = json.load(open(os.path.join(self.path, f'overlay_install.json')))
+                data = json.load(open(os.path.join(self.path, 'overlay_install.json')))
                 self._overlay_install_info = InstalledGame.from_json(data)
             except Exception as e:
                 self.log.debug(f'Failed to load overlay install data: {e!r}')
@@ -413,7 +421,7 @@ class LGDLFS:
     def generate_aliases(self):
         self.log.debug('Generating list of aliases...')
 
-        self.aliases = dict()
+        self.aliases = {}
         aliases = set()
         collisions = set()
         alias_map = defaultdict(set)
@@ -439,9 +447,7 @@ class LGDLFS:
 
         def serialise_sets(obj):
             """Turn sets into sorted lists for storage"""
-            if isinstance(obj, set):
-                return sorted(obj)
-            return obj
+            return sorted(obj) if isinstance(obj, set) else obj
 
         json.dump(alias_map, open(os.path.join(self.path, 'aliases.json'), 'w', newline='\n'),
                   indent=2, sort_keys=True, default=serialise_sets)

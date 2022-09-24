@@ -92,8 +92,7 @@ class Manifest:
         _m.file_manifest_list = FML.read(_tmp)
         _m.custom_fields = CustomFields.read(_tmp)
 
-        unhandled_data = _tmp.read()
-        if unhandled_data:
+        if unhandled_data := _tmp.read():
             logger.warning(f'Did not read {len(unhandled_data)} remaining bytes in manifest! '
                            f'This may not be a problem.')
 
@@ -152,11 +151,7 @@ class Manifest:
             self.data = zlib.compress(self.data)
             self.size_compressed = len(self.data)
 
-        if not fp:
-            bio = BytesIO()
-        else:
-            bio = fp
-
+        bio = fp or BytesIO()
         bio.write(struct.pack('<I', self.header_magic))
         bio.write(struct.pack('<I', self.header_size))
         bio.write(struct.pack('<I', self.size_uncompressed))
@@ -166,10 +161,7 @@ class Manifest:
         bio.write(struct.pack('<I', self.serialisation_version))
         bio.write(self.data)
 
-        if not fp:
-            return bio.getvalue()
-        else:
-            return bio.tell()
+        return bio.tell() if fp else bio.getvalue()
 
 
 class ManifestMeta:
@@ -226,7 +218,7 @@ class ManifestMeta:
 
         # This is a list though I've never seen more than one entry
         entries = struct.unpack('<I', bio.read(4))[0]
-        for i in range(entries):
+        for _ in range(entries):
             _meta.prereq_ids.append(read_fstring(bio))
 
         _meta.prereq_name = read_fstring(bio)
@@ -291,7 +283,7 @@ class CDL:
 
     def get_chunk_by_path(self, path):
         if not self._path_map:
-            self._path_map = dict()
+            self._path_map = {}
             for index, chunk in enumerate(self.elements):
                 self._path_map[chunk.path] = index
 
@@ -316,7 +308,7 @@ class CDL:
 
     def get_chunk_by_guid_str(self, guid):
         if not self._guid_map:
-            self._guid_map = dict()
+            self._guid_map = {}
             for index, chunk in enumerate(self.elements):
                 self._guid_map[chunk.guid_str] = index
 
@@ -327,7 +319,7 @@ class CDL:
 
     def get_chunk_by_guid_num(self, guid_int):
         if not self._guid_int_map:
-            self._guid_int_map = dict()
+            self._guid_int_map = {}
             for index, chunk in enumerate(self.elements):
                 self._guid_int_map[chunk.guid_num] = index
 
@@ -348,7 +340,7 @@ class CDL:
 
         # the way this data is stored is rather odd, maybe there's a nicer way to write this...
 
-        for i in range(_cdl.count):
+        for _ in range(_cdl.count):
             _cdl.elements.append(ChunkInfo(manifest_version=manifest_version))
 
         # guid, doesn't seem to be a standard like UUID but is fairly straightfoward, 4 bytes, 128 bit.
@@ -424,9 +416,7 @@ class ChunkInfo:
         self._guid_num = None
 
     def __repr__(self):
-        return '<ChunkInfo (guid={}, hash={}, sha_hash={}, group_num={}, window_size={}, file_size={})>'.format(
-            self.guid_str, self.hash, self.sha_hash.hex(), self.group_num, self.window_size, self.file_size
-        )
+        return f'<ChunkInfo (guid={self.guid_str}, hash={self.hash}, sha_hash={self.sha_hash.hex()}, group_num={self.group_num}, window_size={self.window_size}, file_size={self.file_size})>'
 
     @property
     def guid_str(self):
@@ -474,11 +464,11 @@ class FML:
         self.count = 0
         self.elements = []
 
-        self._path_map = dict()
+        self._path_map = {}
 
     def get_file_by_path(self, path):
         if not self._path_map:
-            self._path_map = dict()
+            self._path_map = {}
             for index, fm in enumerate(self.elements):
                 self._path_map[fm.filename] = index
 
@@ -495,7 +485,7 @@ class FML:
         _fml.version = struct.unpack('B', bio.read(1))[0]
         _fml.count = struct.unpack('<I', bio.read(4))[0]
 
-        for i in range(_fml.count):
+        for _ in range(_fml.count):
             _fml.elements.append(FileManifest())
 
         for fm in _fml.elements:
@@ -516,14 +506,14 @@ class FML:
         # install tags, no idea what they do, I've only seen them in the Fortnite manifest
         for fm in _fml.elements:
             _elem = struct.unpack('<I', bio.read(4))[0]
-            for i in range(_elem):
+            for _ in range(_elem):
                 fm.install_tags.append(read_fstring(bio))
 
         # Each file is made up of "Chunk Parts" that can be spread across the "chunk stream"
         for fm in _fml.elements:
             _elem = struct.unpack('<I', bio.read(4))[0]
             _offset = 0
-            for i in range(_elem):
+            for _ in range(_elem):
                 chunkp = ChunkPart()
                 _start = bio.tell()
                 _size = struct.unpack('<I', bio.read(4))[0]
@@ -637,11 +627,7 @@ class FileManifest:
             _cp.append('[...]')
             cp_repr = ', '.join(_cp)
 
-        return '<FileManifest (filename="{}", symlink_target="{}", hash={}, flags={}, ' \
-               'install_tags=[{}], chunk_parts=[{}], file_size={})>'.format(
-                    self.filename, self.symlink_target, self.hash.hex(), self.flags,
-                    ', '.join(self.install_tags), cp_repr, self.file_size
-               )
+        return f"""<FileManifest (filename="{self.filename}", symlink_target="{self.symlink_target}", hash={self.hash.hex()}, flags={self.flags}, install_tags=[{', '.join(self.install_tags)}], chunk_parts=[{cp_repr}], file_size={self.file_size})>"""
 
 
 class ChunkPart:
@@ -668,8 +654,7 @@ class ChunkPart:
 
     def __repr__(self):
         guid_readable = '-'.join('{:08x}'.format(g) for g in self.guid)
-        return '<ChunkPart (guid={}, offset={}, size={}, file_offset={})>'.format(
-            guid_readable, self.offset, self.size, self.file_offset)
+        return f'<ChunkPart (guid={guid_readable}, offset={self.offset}, size={self.size}, file_offset={self.file_offset})>'
 
 
 class CustomFields:
@@ -680,7 +665,7 @@ class CustomFields:
         self.version = 0
         self.count = 0
 
-        self._dict = dict()
+        self._dict = {}
 
     def __getitem__(self, item):
         return self._dict.get(item, None)
@@ -709,15 +694,8 @@ class CustomFields:
         _cf.version = struct.unpack('B', bio.read(1))[0]
         _cf.count = struct.unpack('<I', bio.read(4))[0]
 
-        _keys = []
-        _values = []
-
-        for i in range(_cf.count):
-            _keys.append(read_fstring(bio))
-
-        for i in range(_cf.count):
-            _values.append(read_fstring(bio))
-
+        _keys = [read_fstring(bio) for _ in range(_cf.count)]
+        _values = [read_fstring(bio) for _ in range(_cf.count)]
         _cf._dict = dict(zip(_keys, _values))
 
         if (size_read := bio.tell() - cf_start) != _cf.size:
@@ -760,14 +738,13 @@ class ManifestComparison:
         comp = cls()
 
         if not old_manifest:
-            comp.added = set(fm.filename for fm in manifest.file_manifest_list.elements)
+            comp.added = {fm.filename for fm in manifest.file_manifest_list.elements}
             return comp
 
         old_files = {fm.filename: fm.hash for fm in old_manifest.file_manifest_list.elements}
 
         for fm in manifest.file_manifest_list.elements:
-            old_file_hash = old_files.pop(fm.filename, None)
-            if old_file_hash:
+            if old_file_hash := old_files.pop(fm.filename, None):
                 if fm.hash == old_file_hash:
                     comp.unchanged.add(fm.filename)
                 else:

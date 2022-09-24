@@ -87,7 +87,7 @@ class LegendaryCore:
             except Exception as e:
                 self.log.warning(f'Getting locale failed: {e!r}, falling back to using en-US.')
         elif system() != 'Darwin':  # macOS doesn't have a default locale we can query
-            self.log.warning(f'Could not determine locale, falling back to en-US')
+            self.log.warning('Could not determine locale, falling back to en-US')
 
         self.update_available = False
         self.force_show_update = False
@@ -125,9 +125,8 @@ class LegendaryCore:
 
         if r.status_code == 200:
             return r.json()['code']
-        else:
-            self.log.error(f'Getting exchange code failed: {r.json()}')
-            return ''
+        self.log.error(f'Getting exchange code failed: {r.json()}')
+        return ''
 
     def auth_code(self, code) -> bool:
         """
@@ -276,10 +275,10 @@ class LegendaryCore:
         """Applies configuration options returned by update API"""
         if not version_info:
             version_info = self.lgd.get_cached_version()['data']
-            # if cached data is invalid
-            if not version_info:
-                self.log.debug('No cached legendary config to apply.')
-                return
+        # if cached data is invalid
+        if not version_info:
+            self.log.debug('No cached legendary config to apply.')
+            return
 
         if 'egl_config' in version_info:
             self.egs.update_egs_params(version_info['egl_config'])
@@ -302,10 +301,11 @@ class LegendaryCore:
 
     def get_game_tip(self, app_name):
         update_info = self.lgd.get_cached_version()['data']
-        if not update_info:
-            return None
-
-        return update_info.get('game_wiki', {}).get(app_name, {}).get(sys_platform)
+        return (
+            update_info.get('game_wiki', {}).get(app_name, {}).get(sys_platform)
+            if update_info
+            else None
+        )
 
     def get_sdl_data(self, app_name, platform='Windows'):
         if platform not in ('Win32', 'Windows'):
@@ -344,11 +344,7 @@ class LegendaryCore:
             if not self.egs.user:
                 return []
 
-            if self.lgd.assets:
-                assets = self.lgd.assets.copy()
-            else:
-                assets = dict()
-
+            assets = self.lgd.assets.copy() if self.lgd.assets else {}
             assets.update({
                 platform: [
                     GameAsset.from_egs_json(a) for a in
@@ -471,7 +467,13 @@ class LegendaryCore:
 
             if game.is_dlc:
                 _dlc[game.metadata['mainGameItem']['id']].append(game)
-            elif not any(i['path'] == 'mods' for i in game.metadata.get('categories', [])) and platform in app_assets:
+            elif (
+                all(
+                    i['path'] != 'mods'
+                    for i in game.metadata.get('categories', [])
+                )
+                and platform in app_assets
+            ):
                 _ret.append(game)
 
         self.update_aliases(force=meta_updated)
@@ -512,7 +514,7 @@ class LegendaryCore:
         _ret = []
         _dlc = defaultdict(list)
         # get all the appnames we have to ignore
-        ignore = set(i.app_name for i in self.get_assets())
+        ignore = {i.app_name for i in self.get_assets()}
 
         for libitem in self.egs.get_library_items():
             if libitem['namespace'] == 'ue' and skip_ue:
@@ -528,7 +530,9 @@ class LegendaryCore:
 
             if game.is_dlc:
                 _dlc[game.metadata['mainGameItem']['id']].append(game)
-            elif not any(i['path'] == 'mods' for i in game.metadata.get('categories', [])):
+            elif all(
+                i['path'] != 'mods' for i in game.metadata.get('categories', [])
+            ):
                 _ret.append(game)
 
         # Force refresh to make sure these titles are included in aliasing
@@ -568,22 +572,37 @@ class LegendaryCore:
 
     def get_installed_game(self, app_name, skip_sync=False) -> InstalledGame:
         igame = self._get_installed_game(app_name)
-        if not skip_sync and igame and self.egl_sync_enabled and igame.egl_guid and not igame.is_dlc:
-            self.egl_sync(app_name)
-            return self._get_installed_game(app_name)
-        else:
+        if (
+            skip_sync
+            or not igame
+            or not self.egl_sync_enabled
+            or not igame.egl_guid
+            or igame.is_dlc
+        ):
             return igame
+        self.egl_sync(app_name)
+        return self._get_installed_game(app_name)
 
     def _get_installed_game(self, app_name) -> InstalledGame:
         return self.lgd.get_installed_game(app_name)
 
     def get_app_environment(self, app_name, wine_pfx=None, cx_bottle=None, disable_wine=False) -> dict:
         # get environment overrides from config
-        env = dict()
+        env = {}
         if 'default.env' in self.lgd.config:
-            env.update({k: v for k, v in self.lgd.config[f'default.env'].items() if v and not k.startswith(';')})
+            env |= {
+                k: v
+                for k, v in self.lgd.config['default.env'].items()
+                if v and not k.startswith(';')
+            }
+
         if f'{app_name}.env' in self.lgd.config:
-            env.update({k: v for k, v in self.lgd.config[f'{app_name}.env'].items() if v and not k.startswith(';')})
+            env |= {
+                k: v
+                for k, v in self.lgd.config[f'{app_name}.env'].items()
+                if v and not k.startswith(';')
+            }
+
 
         if disable_wine:
             return env
@@ -721,11 +740,8 @@ class LegendaryCore:
         elif not install.can_run_offline:
             self.log.warning('Game is not approved for offline use and may not work correctly.')
 
-        user_name = self.lgd.userdata['displayName']
         account_id = self.lgd.userdata['account_id']
-        if user:
-            user_name = user
-
+        user_name = user or self.lgd.userdata['displayName']
         params.egl_parameters.extend([
             '-AUTH_LOGIN=unused',
             f'-AUTH_PASSWORD={game_token}',
@@ -762,11 +778,7 @@ class LegendaryCore:
         return params
 
     def get_origin_uri(self, app_name: str, offline: bool = False) -> str:
-        if offline:
-            token = '0'
-        else:
-            token = self.egs.get_game_token()['code']
-
+        token = '0' if offline else self.egs.get_game_token()['code']
         user_name = self.lgd.userdata['displayName']
         account_id = self.lgd.userdata['account_id']
         parameters = [
@@ -778,8 +790,11 @@ class LegendaryCore:
         ]
 
         game = self.get_game(app_name)
-        extra_args = game.metadata.get('customAttributes', {}).get('AdditionalCommandline', {}).get('value')
-        if extra_args:
+        if (
+            extra_args := game.metadata.get('customAttributes', {})
+            .get('AdditionalCommandline', {})
+            .get('value')
+        ):
             parameters.extend(parse_qsl(extra_args))
 
         return f'link2ea://launchgame/{app_name}?{urlencode(parameters)}'
@@ -821,18 +836,22 @@ class LegendaryCore:
         }
 
         if sys_platform == 'win32':
-            path_vars.update({
+            path_vars |= {
                 '{appdata}': os.path.expandvars('%LOCALAPPDATA%'),
                 '{userdir}': os.path.expandvars('%userprofile%/documents'),
                 '{userprofile}': os.path.expandvars('%userprofile%'),
-                '{usersavedgames}': os.path.expandvars('%userprofile%/Saved Games')
-            })
+                '{usersavedgames}': os.path.expandvars(
+                    '%userprofile%/Saved Games'
+                ),
+            }
+
         elif sys_platform == 'darwin' and platform == 'Mac':
-            path_vars.update({
+            path_vars |= {
                 '{appdata}': os.path.expanduser('~/Library/Application Support'),
                 '{userdir}': os.path.expanduser('~/Documents'),
-                '{userlibrary}': os.path.expanduser('~/Library')
-            })
+                '{userlibrary}': os.path.expanduser('~/Library'),
+            }
+
         else:
             wine_pfx = None
             # on mac CrossOver takes precedence so check for a bottle first
@@ -848,8 +867,9 @@ class LegendaryCore:
                 wine_pfx = self.lgd.config.get(app_name, 'wine_prefix', fallback=wine_pfx)
             # Proton is not officially supported, but people still use it, so look for it
             if not wine_pfx:
-                proton_pfx = self.lgd.config.get(f'{app_name}.env', 'STEAM_COMPAT_DATA_PATH', fallback=None)
-                if proton_pfx:
+                if proton_pfx := self.lgd.config.get(
+                    f'{app_name}.env', 'STEAM_COMPAT_DATA_PATH', fallback=None
+                ):
                     wine_pfx = f'{proton_pfx}/pfx'
 
             # fall back to defaults if app-specifics not found
@@ -870,8 +890,7 @@ class LegendaryCore:
                     wine_pfx = mac_get_bottle_path(cx_bottle)
 
             if not wine_pfx:
-                proton_pfx = os.getenv('STEAM_COMPAT_DATA_PATH')
-                if proton_pfx:
+                if proton_pfx := os.getenv('STEAM_COMPAT_DATA_PATH'):
                     wine_pfx = f'{proton_pfx}/pfx'
                 wine_pfx = os.getenv('WINEPREFIX', wine_pfx)
 
@@ -1018,7 +1037,7 @@ class LegendaryCore:
             m = self.load_manifest(r.content)
 
             # download chunks required for extraction
-            chunks = dict()
+            chunks = {}
             for chunk in m.chunk_data_list.elements:
                 cpath_p = fname.split('/', 3)[:3]
                 cpath_p.append(chunk.path)
@@ -1041,8 +1060,10 @@ class LegendaryCore:
                                    f'"legendary clean-saves {app_name}" and try again.')
                     return
                 else:
-                    self.log.error(f'No chunks were available, skipping. You can run "legendary clean-saves" '
-                                   f'to remove this broken save from your account.')
+                    self.log.error(
+                        'No chunks were available, skipping. You can run "legendary clean-saves" to remove this broken save from your account.'
+                    )
+
                     continue
 
             for fm in m.file_manifest_list.elements:
@@ -1113,13 +1134,14 @@ class LegendaryCore:
                     missing_chunks += 1
 
             if (0 < missing_chunks < total_chunks and delete_incomplete) or missing_chunks == total_chunks:
-                self.log.error(f'Chunk(s) missing, marking manifest for deletion.')
+                self.log.error('Chunk(s) missing, marking manifest for deletion.')
                 deletion_list.append(fname)
                 continue
             elif 0 < missing_chunks < total_chunks:
-                self.log.error(f'Some chunk(s) missing, optionally run "legendary download-saves" to obtain a backup '
-                               f'of the corrupted save, then re-run this command with "--delete-incomplete" to remove '
-                               f'it from the cloud save service.')
+                self.log.error(
+                    'Some chunk(s) missing, optionally run "legendary download-saves" to obtain a backup of the corrupted save, then re-run this command with "--delete-incomplete" to remove it from the cloud save service.'
+                )
+
 
             used_chunks |= chunk_fnames
 
@@ -1155,10 +1177,7 @@ class LegendaryCore:
 
         for ass in self.get_assets(True):
             if ass.app_name == app_name:
-                if ass.build_version != installed.version:
-                    return False
-                else:
-                    return True
+                return ass.build_version == installed.version
         # if we get here something is very wrong
         raise ValueError(f'Could not find {app_name} in asset list!')
 
@@ -1169,14 +1188,14 @@ class LegendaryCore:
         return self._get_installed_game(app_name) is not None
 
     def is_dlc(self, app_name: str) -> bool:
-        meta = self.lgd.get_game_meta(app_name)
-        if not meta:
+        if meta := self.lgd.get_game_meta(app_name):
+            return meta.is_dlc
+        else:
             raise ValueError('Game unknown!')
-        return meta.is_dlc
 
     @staticmethod
     def load_manifest(data: bytes) -> Manifest:
-        if data[0:1] == b'{':
+        if data[:1] == b'{':
             return JSONManifest.read_all(data)
         else:
             return Manifest.read_all(data)
@@ -1254,10 +1273,7 @@ class LegendaryCore:
             return None
 
         r = self.egs.unauth_session.get(f'{base_url}/Deltas/{new_build_id}/{old_build_id}.delta')
-        if r.status_code == 200:
-            return r.content
-        else:
-            return None
+        return r.content if r.status_code == 200 else None
 
     def prepare_download(self, game: Game, base_game: Game = None, base_path: str = '',
                          status_q: Queue = None, max_shm: int = 0, max_workers: int = 0,

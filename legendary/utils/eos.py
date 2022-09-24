@@ -52,12 +52,14 @@ def query_registry_entries(prefix=None):
             raise ValueError('No user.reg file, invalid path')
 
         reg_lines = open(use_reg_file, 'r', encoding='utf-8').readlines()
-        for line in reg_lines:
-            if EOS_OVERLAY_VALUE in line:
-                overlay_path = line.partition('=')[2].strip().strip('"')
-                break
-        else:
-            overlay_path = None
+        overlay_path = next(
+            (
+                line.partition('=')[2].strip().strip('"')
+                for line in reg_lines
+                if EOS_OVERLAY_VALUE in line
+            ),
+            None,
+        )
 
         if overlay_path:
             if overlay_path.startswith('C:'):
@@ -65,9 +67,7 @@ def query_registry_entries(prefix=None):
             elif overlay_path.startswith('Z:'):
                 overlay_path = overlay_path[2:]
 
-        return dict(overlay_path=overlay_path,
-                    vulkan_hkcu=list(),
-                    vulkan_hklm=list())
+        return dict(overlay_path=overlay_path, vulkan_hkcu=[], vulkan_hklm=[])
     else:
         raise ValueError('No prefix specified on non-Windows platform')
 
